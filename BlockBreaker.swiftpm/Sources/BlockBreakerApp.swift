@@ -7,6 +7,7 @@ struct BlockBreakerApp: App {
             ContentView()
                 .preferredColorScheme(.dark)
                 .statusBarHidden(true)
+                .persistentSystemOverlays(.hidden)
         }
     }
 }
