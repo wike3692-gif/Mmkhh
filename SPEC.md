@@ -1,7 +1,8 @@
 # トレンドブログ分析 キーワード選定ツール 計画仕様書
 
-**バージョン**: 1.0
+**バージョン**: 1.1
 **作成日**: 2026-02-19
+**更新日**: 2026-02-19（急上昇ワード+◯◯ 新規キーワード予測機能を追加）
 **ブランチ**: claude/trend-keyword-prediction-tool-EReLg
 
 ---
@@ -37,6 +38,19 @@ X（旧Twitter）と Yahoo ニュースの RSS データを収集し、**トレ�
       │  Spike Score 閾値超過ワードを抽出
       │  カテゴリ分類（エンタメ / テクノロジー / 社会 / スポーツ等）
       │  拡散速度トレンド予測（線形外挿 / 指数平滑法）
+            │
+            ▼
+[ 急上昇ワード+◯◯ 新規キーワード生成 ]          ★ NEW
+      │  Google Autocomplete API で "急上昇ワード+◯◯" 候補を取得
+      │  Yahoo Search Suggest API で追加候補を取得
+      │  pytrends related_queries で関連急上昇クエリを取得
+      │  カテゴリ別サフィックステンプレートで補完
+      │  ─────────────────────────────────────────
+      │  例: 「AIエージェント」→
+      │    "AIエージェント とは"
+      │    "AIエージェント 使い方"
+      │    "AIエージェント おすすめ 無料"
+      │    "AIエージェント 2026 最新"  ...
             │
             ▼
 [ 1万PV見込みキーワード選定 ]
@@ -76,6 +90,7 @@ trend_keyword_tool/
 │   ├── __init__.py
 │   ├── spike_scorer.py      # 急上昇スコア算出
 │   ├── trend_predictor.py   # トレンド予測（時系列外挿）
+│   ├── keyword_generator.py # ★NEW 急上昇ワード+◯◯ 新規キーワード生成
 │   └── pv_estimator.py      # PV 見込みスコア算出
 │
 ├── outputs/                 # 出力層
@@ -172,7 +187,170 @@ freq_baseline: 過去 48 時間の 1 時間あたり平均出現頻度
 
 ---
 
-## 7. PV 見込みスコア算出
+## 7. 急上昇ワード+◯◯ 新規キーワード生成仕様 ★NEW
+
+急上昇ワードを軸に、Google・Yahoo で実際に検索されるロングテールキーワードを自動生成・選定する中核機能。
+
+### 7-1. 処理フロー
+
+```
+急上昇ワード（例: "AIエージェント"）
+        │
+        ├─① Google Autocomplete API
+        │     → "AIエージェント とは"
+        │     → "AIエージェント 使い方"
+        │     → "AIエージェント 無料"
+        │
+        ├─② Yahoo Search Suggest API
+        │     → "AIエージェント おすすめ"
+        │     → "AIエージェント 比較"
+        │
+        ├─③ pytrends related_queries（急上昇クエリ）
+        │     → "AIエージェント 2026"
+        │     → "AIエージェント Claude"
+        │
+        └─④ カテゴリ別サフィックステンプレート（補完）
+              → "AIエージェント 始め方"
+              → "AIエージェント ビジネス活用"
+                    │
+                    ▼
+        [重複排除・正規化]
+                    │
+                    ▼
+        [PV見込みスコアリング（各候補に対して実行）]
+                    │
+                    ▼
+        [フィルタリング: PV見込み ≥ 10,000 のみ]
+                    │
+                    ▼
+        [出力: 急上昇ワード+◯◯ キーワードランキング]
+```
+
+### 7-2. データソース詳細
+
+#### ① Google Autocomplete API（無料・APIキー不要）
+
+```
+GET https://suggestqueries.google.com/complete/search
+    ?q={急上昇ワード}
+    &hl=ja
+    &gl=jp
+    &client=firefox
+```
+
+レスポンス例（JSON配列）:
+```json
+["AIエージェント", ["AIエージェント とは", "AIエージェント 使い方", "AIエージェント おすすめ", ...]]
+```
+
+- レート制限: 1 req/sec 以下で実行
+- 最大候補数: 10件/クエリ
+- フォールバック: `client=gws-wiz` に切り替え
+
+#### ② Yahoo Japan Search Suggest API（無料・APIキー不要）
+
+```
+GET https://assist-search.yahooapis.jp/SuggestService/V4/assist
+    ?query={急上昇ワード}
+    &output=json
+    &appid={YAHOO_APP_ID}   # オプション（なしでも動作）
+```
+
+または Yahoo News 検索からサジェスト取得:
+```
+GET https://search.yahoo.co.jp/search
+    ?p={急上昇ワード}
+    &ei=UTF-8
+```
+
+- HTMLパースでサジェスト抽出（BeautifulSoup）
+
+#### ③ pytrends related_queries
+
+```python
+from pytrends.request import TrendReq
+
+pytrends = TrendReq(hl='ja-JP', tz=540)
+pytrends.build_payload([keyword], geo='JP', timeframe='now 7-d')
+related = pytrends.related_queries()
+rising_queries = related[keyword]['rising']  # 急上昇クエリ
+```
+
+- 返値: `{'query': 'AIエージェント 使い方', 'value': 250}` 形式
+- `value` = Breakout（急上昇） or 増加率(%)
+
+#### ④ カテゴリ別サフィックステンプレート
+
+| カテゴリ | サフィックス例 |
+|---------|--------------|
+| **汎用** | とは / 意味 / 読み方 / まとめ / 最新 / 2026 |
+| **入門系** | 使い方 / 始め方 / 初心者 / 入門 / やり方 |
+| **比較系** | おすすめ / ランキング / 比較 / 違い / どっちがいい |
+| **問題系** | 原因 / 対策 / 影響 / リスク / デメリット / 危険 |
+| **購入系** | 値段 / 価格 / 無料 / 安い / 費用 |
+| **評判系** | 口コミ / 評判 / レビュー / 感想 |
+| **時事系** | いつ / どこ / なぜ / 今後 / 予測 / 速報 |
+| **テック系** | API / Python / 自動化 / ビジネス活用 |
+| **エンタメ系** | 動画 / 画像 / SNS / バズ |
+| **社会系** | 法律 / 規制 / 問題 / 事件 |
+
+### 7-3. 候補キーワードのスコアリング
+
+```python
+# 各候補キーワード（急上昇ワード + ◯◯）に対して実行
+
+CombinedKeyword_Score(kw) = (
+    autocomplete_rank_score(kw)  # Google/Yahoo提案順位に基づく重み
+  + trends_rising_score(kw)      # pytrends rising value
+  + suffix_popularity_score(kw)  # テンプレートサフィックスの汎用度
+) × pv_estimate(kw)              # PV見込み（最終フィルタ）
+```
+
+| スコア要素 | 算出方法 | 重み |
+|-----------|---------|------|
+| autocomplete_rank_score | 提案リスト上位ほど高スコア (10→1位: 10点→1点) | 40% |
+| trends_rising_score | pytrends value / 100（最大1.0） | 35% |
+| suffix_popularity_score | テンプレート汎用サフィックス +0.5 / 固有サフィックス +1.0 | 25% |
+
+### 7-4. 出力例
+
+```
+======================================
+  急上昇ワード+◯◯ 新規キーワード予測
+======================================
+
+【急上昇ワード】: AIエージェント (Spike Score: 18.5)
+
+  予測キーワード                    PV見込み  出典
+  ─────────────────────────────────────────────
+  AIエージェント とは               45,200   Google + Yahoo
+  AIエージェント 使い方             28,700   Google + pytrends
+  AIエージェント おすすめ 無料      18,500   Yahoo + Template
+  AIエージェント 2026 最新          14,200   pytrends (Breakout)
+  AIエージェント ビジネス活用        11,800   Template + pytrends
+  ─────────────────────────────────────────────
+  ✓ 1万PV超え候補: 5件
+```
+
+### 7-5. SQLite 追加テーブル
+
+```sql
+-- 生成キーワードテーブル
+CREATE TABLE generated_keywords (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    base_keyword    TEXT NOT NULL,   -- 急上昇ワード
+    suffix          TEXT NOT NULL,   -- ◯◯部分
+    full_keyword    TEXT NOT NULL,   -- base + suffix の完成形
+    source          TEXT,            -- 'autocomplete'|'yahoo'|'pytrends'|'template'
+    pv_estimate     INTEGER,
+    combined_score  REAL,
+    generated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## 8. PV 見込みスコア算出
 
 ```
 PV_estimate(w) = search_volume(w) × CTR(rank) × (1 / competition_factor(w))
@@ -272,10 +450,13 @@ CREATE TABLE prediction_results (
 |------|-----------|
 | RSS 取得 | `feedparser` |
 | HTTP クライアント | `requests`, `httpx` |
+| HTML パース（Yahoo Suggest） | `beautifulsoup4`, `lxml` |
 | 形態素解析 | `janome` |
 | テキスト正規化 | `unicodedata`, `re` |
 | 時系列・数値計算 | `pandas`, `numpy` |
-| Google Trends | `pytrends` |
+| Google Trends + related_queries | `pytrends` |
+| **Google Autocomplete API** | `requests`（APIキー不要） |
+| **Yahoo Search Suggest API** | `requests` + `beautifulsoup4` |
 | データ永続化 | `sqlite3`（標準ライブラリ） |
 | スケジューリング | `schedule` |
 | CLI | `argparse` |
@@ -290,9 +471,10 @@ CREATE TABLE prediction_results (
 | Phase 1 | データ収集（Yahoo RSS + Nitter RSS） | 高 |
 | Phase 2 | テキスト処理・キーワード抽出 | 高 |
 | Phase 3 | 急上昇スコア算出・SQLite 蓄積 | 高 |
-| Phase 4 | PV 見込みスコア（pytrends 連携） | 中 |
-| Phase 5 | レポート・CSV/JSON 出力 | 中 |
-| Phase 6 | CLI インターフェース・スケジューラ | 低 |
+| Phase 4 | **急上昇ワード+◯◯ キーワード生成**（Autocomplete + Yahoo Suggest + pytrends） | **高** |
+| Phase 5 | PV 見込みスコア（pytrends 連携・各候補に適用） | 中 |
+| Phase 6 | レポート・CSV/JSON 出力 | 中 |
+| Phase 7 | CLI インターフェース・スケジューラ | 低 |
 
 ---
 
@@ -312,7 +494,7 @@ CREATE TABLE prediction_results (
 # プロジェクトセットアップ
 python -m venv venv
 source venv/bin/activate
-pip install feedparser requests httpx janome pandas numpy pytrends schedule pytest
+pip install feedparser requests httpx janome pandas numpy pytrends schedule pytest beautifulsoup4 lxml
 
 # 実行
 python main.py --mode collect   # データ収集のみ
