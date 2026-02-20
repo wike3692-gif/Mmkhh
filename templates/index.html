@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>画像リサイズツール — 最高画質</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Card ───────────────────────────────────────────────────────── */
+    .card {
+      background: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 100%;
+      max-width: 640px;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: .25rem;
+      color: #1a202c;
+    }
+    .subtitle {
+      font-size: .85rem;
+      color: #718096;
+      margin-bottom: 1.75rem;
+    }
+
+    /* ── Drop zone ──────────────────────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: .75rem;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #4299e1;
+      background: #ebf8ff;
+    }
+    .drop-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-zone .icon { font-size: 2.5rem; line-height: 1; }
+    .drop-zone p { margin-top: .5rem; font-size: .9rem; color: #4a5568; }
+    .drop-zone strong { color: #2b6cb0; }
+
+    /* ── Image preview ──────────────────────────────────────────────── */
+    #preview-wrap {
+      display: none;
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+    #preview-wrap img {
+      max-height: 200px;
+      max-width: 100%;
+      border-radius: .5rem;
+      border: 1px solid #e2e8f0;
+    }
+    #img-info {
+      font-size: .8rem;
+      color: #718096;
+      margin-top: .4rem;
+    }
+
+    /* ── Form sections ──────────────────────────────────────────────── */
+    .section-title {
+      font-size: .8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #4a5568;
+      margin-bottom: .6rem;
+    }
+    .form-group { margin-bottom: 1.25rem; }
+
+    /* ── Mode tabs ──────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: .4rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      flex: 1;
+      min-width: 80px;
+      padding: .45rem .6rem;
+      border: 1.5px solid #e2e8f0;
+      border-radius: .5rem;
+      background: #f7fafc;
+      cursor: pointer;
+      font-size: .82rem;
+      font-weight: 600;
+      color: #4a5568;
+      transition: all .15s;
+      text-align: center;
+    }
+    .tab-btn.active {
+      border-color: #4299e1;
+      background: #ebf8ff;
+      color: #2b6cb0;
+    }
+
+    /* ── Panels ─────────────────────────────────────────────────────── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Inputs ─────────────────────────────────────────────────────── */
+    label { display: block; font-size: .85rem; font-weight: 500; margin-bottom: .35rem; }
+    input[type=number], select {
+      width: 100%;
+      padding: .5rem .75rem;
+      border: 1.5px solid #e2e8f0;
+      border-radius: .5rem;
+      font-size: .9rem;
+      color: #2d3748;
+      outline: none;
+      transition: border-color .15s;
+      background: #fff;
+    }
+    input[type=number]:focus, select:focus { border-color: #4299e1; }
+
+    .row { display: flex; gap: 1rem; }
+    .row .form-group { flex: 1; }
+
+    /* ── Range slider ───────────────────────────────────────────────── */
+    .slider-wrap { display: flex; align-items: center; gap: .75rem; }
+    input[type=range] {
+      flex: 1;
+      accent-color: #4299e1;
+    }
+    .slider-val {
+      font-size: .85rem;
+      font-weight: 600;
+      min-width: 36px;
+      text-align: right;
+      color: #2b6cb0;
+    }
+
+    /* ── Checkbox ───────────────────────────────────────────────────── */
+    .checkbox-label {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .85rem; cursor: pointer; font-weight: normal;
+    }
+    input[type=checkbox] { accent-color: #4299e1; width: 1rem; height: 1rem; }
+
+    /* ── Submit button ──────────────────────────────────────────────── */
+    .btn-primary {
+      width: 100%;
+      padding: .75rem;
+      background: #4299e1;
+      color: #fff;
+      border: none;
+      border-radius: .6rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s, transform .1s;
+      margin-top: .5rem;
+    }
+    .btn-primary:hover { background: #3182ce; }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    /* ── Status / error ─────────────────────────────────────────────── */
+    #status {
+      margin-top: 1rem;
+      padding: .75rem 1rem;
+      border-radius: .5rem;
+      font-size: .88rem;
+      display: none;
+    }
+    #status.info  { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+    #status.error { background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+    #status.success { background: #f0fff4; color: #276749; border: 1px solid #c6f6d5; }
+
+    /* ── Divider ────────────────────────────────────────────────────── */
+    hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.25rem 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>画像リサイズツール</h1>
+    <p class="subtitle">最高画質（LANZOSフィルタ）で画像を縮小・リサイズ</p>
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*" />
+      <div class="icon">🖼️</div>
+      <p><strong>クリックまたはドラッグ</strong>して画像を選択</p>
+      <p style="font-size:.78rem;color:#a0aec0;margin-top:.3rem">
+        JPG / PNG / WebP / BMP / TIFF 対応 &nbsp;|&nbsp; 最大 50 MB
+      </p>
+    </div>
+
+    <!-- Preview -->
+    <div id="preview-wrap">
+      <img id="preview-img" src="" alt="プレビュー" />
+      <p id="img-info"></p>
+    </div>
+
+    <form id="resize-form">
+      <hr />
+
+      <!-- Mode selection -->
+      <div class="form-group">
+        <div class="section-title">リサイズ方法</div>
+        <div class="tabs">
+          <button type="button" class="tab-btn active" data-mode="scale">%スケール</button>
+          <button type="button" class="tab-btn" data-mode="width">幅指定</button>
+          <button type="button" class="tab-btn" data-mode="height">高さ指定</button>
+          <button type="button" class="tab-btn" data-mode="custom">幅×高さ</button>
+        </div>
+
+        <!-- Scale panel -->
+        <div class="panel active" id="panel-scale">
+          <label for="scale-input">スケール (%)</label>
+          <div class="slider-wrap">
+            <input type="range" id="scale-range" min="1" max="200" value="50" />
+            <span class="slider-val" id="scale-display">50%</span>
+          </div>
+          <input type="number" id="scale-input" value="50" min="1" max="200" style="margin-top:.5rem" />
+        </div>
+
+        <!-- Width panel -->
+        <div class="panel" id="panel-width">
+          <label for="width-input">幅 (px)</label>
+          <input type="number" id="width-input" value="800" min="1" max="20000" />
+        </div>
+
+        <!-- Height panel -->
+        <div class="panel" id="panel-height">
+          <label for="height-input">高さ (px)</label>
+          <input type="number" id="height-input" value="600" min="1" max="20000" />
+        </div>
+
+        <!-- Custom panel -->
+        <div class="panel" id="panel-custom">
+          <div class="row">
+            <div class="form-group">
+              <label for="custom-width">幅 (px)</label>
+              <input type="number" id="custom-width" value="800" min="1" max="20000" />
+            </div>
+            <div class="form-group">
+              <label for="custom-height">高さ (px)</label>
+              <input type="number" id="custom-height" value="600" min="1" max="20000" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keep aspect ratio -->
+      <div class="form-group" id="aspect-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="keep-aspect" checked />
+          アスペクト比を維持する
+        </label>
+      </div>
+
+      <hr />
+
+      <!-- Output format -->
+      <div class="form-group">
+        <div class="section-title">出力設定</div>
+        <div class="row">
+          <div class="form-group">
+            <label for="out-format">フォーマット</label>
+            <select id="out-format">
+              <option value="">元の形式を維持</option>
+              <option value="JPEG">JPEG</option>
+              <option value="PNG">PNG</option>
+              <option value="WEBP">WebP</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="quality-input">画質 (JPEG / WebP)</label>
+            <div class="slider-wrap">
+              <input type="range" id="quality-range" min="1" max="95" value="95" />
+              <span class="slider-val" id="quality-display">95</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submit-btn" disabled>
+        リサイズしてダウンロード
+      </button>
+    </form>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let currentMode = "scale";
+    let selectedFile = null;
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    function showStatus(msg, type = "info") {
+      const el = $("status");
+      el.textContent = msg;
+      el.className = type;
+      el.style.display = "block";
+    }
+    function hideStatus() { $("status").style.display = "none"; }
+
+    function formatBytes(b) {
+      if (b < 1024) return b + " B";
+      if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
+      return (b / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    // ── File selection ─────────────────────────────────────────────────────
+    function handleFile(file) {
+      if (!file || !file.type.startsWith("image/")) {
+        showStatus("画像ファイルを選択してください。", "error");
+        return;
+      }
+      selectedFile = file;
+      hideStatus();
+
+      // Local preview
+      const reader = new FileReader();
+      reader.onload = e => {
+        $("preview-img").src = e.target.result;
+        $("preview-wrap").style.display = "block";
+      };
+      reader.readAsDataURL(file);
+
+      // Fetch dimensions from server
+      const fd = new FormData();
+      fd.append("image", file);
+      fetch("/info", { method: "POST", body: fd })
+        .then(r => r.json())
+        .then(d => {
+          if (d.width) {
+            $("img-info").textContent =
+              `${d.width} × ${d.height} px  |  ${d.format || ""}  |  ${formatBytes(file.size)}`;
+            // Prefill custom dimensions
+            $("custom-width").value = d.width;
+            $("custom-height").value = d.height;
+          }
+        })
+        .catch(() => {
+          $("img-info").textContent = formatBytes(file.size);
+        });
+
+      $("submit-btn").disabled = false;
+    }
+
+    $("file-input").addEventListener("change", e => handleFile(e.target.files[0]));
+
+    // Drag-and-drop
+    const dz = $("drop-zone");
+    dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("drag-over"); });
+    dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
+    dz.addEventListener("drop", e => {
+      e.preventDefault();
+      dz.classList.remove("drag-over");
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    // ── Mode tabs ──────────────────────────────────────────────────────────
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currentMode = btn.dataset.mode;
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+        $("panel-" + currentMode).classList.add("active");
+        // Hide aspect ratio for scale mode (always proportional)
+        $("aspect-group").style.display = currentMode === "scale" ? "none" : "";
+      });
+    });
+
+    // ── Sliders ────────────────────────────────────────────────────────────
+    $("scale-range").addEventListener("input", function () {
+      $("scale-display").textContent = this.value + "%";
+      $("scale-input").value = this.value;
+    });
+    $("scale-input").addEventListener("input", function () {
+      $("scale-range").value = this.value;
+      $("scale-display").textContent = this.value + "%";
+    });
+    $("quality-range").addEventListener("input", function () {
+      $("quality-display").textContent = this.value;
+    });
+
+    // ── Form submit ────────────────────────────────────────────────────────
+    $("resize-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      if (!selectedFile) { showStatus("画像を選択してください。", "error"); return; }
+
+      const btn = $("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "処理中...";
+      showStatus("リサイズ処理中です。しばらくお待ちください...", "info");
+
+      const fd = new FormData();
+      fd.append("image", selectedFile);
+      fd.append("mode", currentMode);
+      fd.append("quality", $("quality-range").value);
+      fd.append("keep_aspect", $("keep-aspect").checked ? "true" : "false");
+      fd.append("format", $("out-format").value);
+
+      if (currentMode === "scale")  fd.append("scale",  $("scale-input").value);
+      if (currentMode === "width")  fd.append("width",  $("width-input").value);
+      if (currentMode === "height") fd.append("height", $("height-input").value);
+      if (currentMode === "custom") {
+        fd.append("width",  $("custom-width").value);
+        fd.append("height", $("custom-height").value);
+      }
+
+      try {
+        const res = await fetch("/resize", { method: "POST", body: fd });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+
+        // Trigger download
+        const blob = await res.blob();
+        const disposition = res.headers.get("Content-Disposition") || "";
+        const nameMatch = disposition.match(/filename="?([^"]+)"?/);
+        const filename = nameMatch ? nameMatch[1] : "resized_image";
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showStatus(`完了！  ${formatBytes(blob.size)} でダウンロードされました。`, "success");
+      } catch (err) {
+        showStatus("エラー: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "リサイズしてダウンロード";
+      }
+    });
+  </script>
+</body>
+</html>
