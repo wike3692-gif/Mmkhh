@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DL同人 KEYWORD ANALYZER // CYBERPUNK</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<style>
+/* ===== FONTS (fallback-safe) ===== */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Noto+Sans+JP:wght@400;700&display=swap');
+
+:root {
+  --cyan: #00f0ff; --magenta: #ff00de; --yellow: #f0ff00;
+  --green: #39ff14; --orange: #ff6a00; --red: #ff003c;
+  --bg0: #08080d; --bg1: #0c0c14; --bg2: #12121f;
+  --bg3: #1a1a2e; --border: #1e1e3a;
+  --txt: #e0e0f0; --txt2: #7878a0;
+  --ff-d: 'Orbitron', 'Arial Black', sans-serif;
+  --ff-m: 'Share Tech Mono', 'Courier New', monospace;
+  --ff-b: 'Noto Sans JP', 'Hiragino Sans', sans-serif;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:14px; }
+body {
+  font-family: var(--ff-b); background: var(--bg0); color: var(--txt);
+  min-height:100vh; overflow-x:hidden; line-height:1.5;
+}
+/* Scanlines */
+body::before {
+  content:''; position:fixed; inset:0; z-index:9999; pointer-events:none;
+  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,240,255,.012) 2px,rgba(0,240,255,.012) 4px);
+}
+/* Grid */
+body::after {
+  content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background: linear-gradient(rgba(0,240,255,.025) 1px,transparent 1px),
+              linear-gradient(90deg,rgba(0,240,255,.025) 1px,transparent 1px);
+  background-size:50px 50px;
+}
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--bg0); }
+::-webkit-scrollbar-thumb { background:var(--cyan); border-radius:3px; box-shadow:0 0 6px var(--cyan); }
+::selection { background:rgba(0,240,255,.3); color:#fff; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes neonPulse {
+  0%,100% { text-shadow:0 0 7px var(--cyan),0 0 14px var(--cyan),0 0 28px rgba(0,240,255,.3); }
+  50%     { text-shadow:0 0 4px var(--cyan),0 0 8px var(--cyan),0 0 16px rgba(0,240,255,.2); }
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideR { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes borderCycle {
+  0%,100%{border-color:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+  50%{border-color:var(--magenta);box-shadow:0 0 12px var(--magenta)}
+}
+@keyframes barGrow { from{width:0} }
+@keyframes flicker {
+  0%,19.9%,22%,63%,64%,65%,70%,100%{opacity:1}
+  20%,21.9%,63.5%,64.9%,65.5%,69.9%{opacity:.35}
+}
+
+/* ===== LAYOUT ===== */
+.app { min-height:100vh; display:flex; flex-direction:column; }
+
+/* Header */
+header {
+  padding:1.2rem 2rem; position:relative; overflow:hidden;
+  background:linear-gradient(180deg,rgba(0,240,255,.06),transparent);
+  border-bottom:1px solid var(--border);
+}
+header::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+  box-shadow:0 0 12px var(--cyan);
+}
+.hdr-inner { max-width:1300px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; }
+.hdr-title { display:flex; align-items:baseline; gap:.6rem; }
+.hdr-title h1 {
+  font:900 1.25rem var(--ff-d); color:var(--cyan); letter-spacing:2px;
+  animation:neonPulse 4s ease-in-out infinite;
+}
+.hdr-title .ver { font:400 .65rem var(--ff-m); color:var(--magenta); text-shadow:0 0 5px var(--magenta); }
+.hdr-status { display:flex; align-items:center; gap:.4rem; font:.72rem var(--ff-m); color:var(--txt2); }
+.dot { width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite; }
+
+/* Main */
+main { flex:1; max-width:1300px; width:100%; margin:0 auto; padding:1.5rem 2rem; display:flex; flex-direction:column; gap:1.5rem; }
+
+/* ===== SEARCH ===== */
+.sec-label {
+  font:.65rem var(--ff-m); color:var(--magenta); text-transform:uppercase;
+  letter-spacing:3px; margin-bottom:.6rem; text-shadow:0 0 5px rgba(255,0,222,.3);
+}
+.search-row { display:flex; gap:.6rem; }
+.search-wrap { flex:1; position:relative; }
+.search-wrap .ico {
+  position:absolute; left:.8rem; top:50%; transform:translateY(-50%);
+  color:var(--cyan); opacity:.5; font-size:.9rem;
+}
+input[type=text] {
+  width:100%; padding:.8rem 1rem .8rem 2.3rem;
+  background:var(--bg1); border:1px solid var(--border); border-radius:4px;
+  color:var(--txt); font:1rem var(--ff-b); outline:none; transition:.3s;
+}
+input:focus { border-color:var(--cyan); box-shadow:0 0 12px rgba(0,240,255,.2),inset 0 0 8px rgba(0,240,255,.04); }
+input::placeholder { color:var(--txt2); font-size:.82rem; }
+
+.btn {
+  padding:.8rem 1.8rem; background:linear-gradient(135deg,rgba(0,240,255,.14),rgba(0,240,255,.04));
+  border:1px solid var(--cyan); border-radius:4px; color:var(--cyan);
+  font:700 .72rem var(--ff-d); letter-spacing:2px; text-transform:uppercase;
+  cursor:pointer; transition:.3s; text-shadow:0 0 5px var(--cyan); white-space:nowrap;
+}
+.btn:hover:not(:disabled) {
+  background:linear-gradient(135deg,rgba(0,240,255,.28),rgba(0,240,255,.1));
+  box-shadow:0 0 18px rgba(0,240,255,.3); transform:translateY(-1px);
+}
+.btn:disabled { opacity:.35; cursor:not-allowed; }
+.btn.spin-border { animation:borderCycle 1.4s infinite; }
+
+/* Quick tags */
+.qtags { display:flex; flex-wrap:wrap; gap:.45rem; margin-top:.7rem; }
+.qtag {
+  padding:.25rem .65rem; background:rgba(255,0,222,.07); border:1px solid rgba(255,0,222,.25);
+  border-radius:3px; color:var(--magenta); font-size:.73rem; cursor:pointer; transition:.2s;
+}
+.qtag:hover { background:rgba(255,0,222,.15); box-shadow:0 0 8px rgba(255,0,222,.2); transform:translateY(-1px); }
+
+/* Tabs */
+.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); }
+.tab {
+  padding:.55rem 1.4rem; background:transparent; border:1px solid var(--border);
+  border-bottom:none; border-radius:4px 4px 0 0; color:var(--txt2);
+  font:.72rem var(--ff-m); cursor:pointer; transition:.2s; letter-spacing:1px;
+}
+.tab:hover { color:var(--txt); background:rgba(0,240,255,.04); }
+.tab.on { color:var(--cyan); background:var(--bg2); border-color:var(--cyan); text-shadow:0 0 5px var(--cyan); }
+
+/* ===== PANELS ===== */
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; animation:fadeUp .45s ease-out; }
+@media(max-width:860px){ .grid{grid-template-columns:1fr} }
+.panel {
+  background:var(--bg2); border:1px solid var(--border); border-radius:4px;
+  overflow:hidden; transition:border-color .3s;
+}
+.panel:hover { border-color:rgba(0,240,255,.3); }
+.panel.full { grid-column:1/-1; }
+.p-head {
+  display:flex; align-items:center; gap:.45rem; padding:.65rem .9rem;
+  background:linear-gradient(90deg,rgba(0,240,255,.07),transparent);
+  border-bottom:1px solid var(--border);
+  font:700 .68rem var(--ff-d); color:var(--cyan); letter-spacing:2px; text-transform:uppercase;
+}
+.p-body { padding:.9rem; }
+
+/* Stats */
+.stats { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+.st {
+  padding:.7rem; background:rgba(0,240,255,.025); border:1px solid rgba(0,240,255,.08);
+  border-radius:4px; text-align:center;
+}
+.st-v { font:900 1.4rem var(--ff-d); }
+.st-v.c { color:var(--cyan); text-shadow:0 0 10px rgba(0,240,255,.3); }
+.st-v.m { color:var(--magenta); text-shadow:0 0 10px rgba(255,0,222,.3); }
+.st-v.g { color:var(--green); text-shadow:0 0 10px rgba(57,255,20,.3); }
+.st-v.y { color:var(--yellow); text-shadow:0 0 10px rgba(240,255,0,.3); }
+.st-l { font:.6rem var(--ff-m); color:var(--txt2); margin-top:.2rem; text-transform:uppercase; letter-spacing:1px; }
+
+/* Demand bar */
+.d-hdr { display:flex; justify-content:space-between; align-items:baseline; margin:.6rem 0 .4rem; }
+.d-lbl { font:.68rem var(--ff-m); color:var(--txt2); text-transform:uppercase; letter-spacing:1px; }
+.d-val { font:900 1.8rem var(--ff-d); }
+.d-track { width:100%;height:7px;background:rgba(255,255,255,.04);border-radius:4px;overflow:hidden; }
+.d-fill { height:100%;border-radius:4px;animation:barGrow .8s ease-out; position:relative; }
+.d-fill.hi { background:linear-gradient(90deg,var(--green),var(--cyan)); box-shadow:0 0 8px var(--green); }
+.d-fill.md { background:linear-gradient(90deg,var(--yellow),var(--orange)); box-shadow:0 0 8px var(--yellow); }
+.d-fill.lo { background:linear-gradient(90deg,var(--red),var(--orange)); box-shadow:0 0 8px var(--red); }
+
+/* Tags */
+.tags { display:flex; flex-wrap:wrap; gap:.4rem; }
+.tg {
+  padding:.3rem .65rem; border-radius:3px; font:.72rem var(--ff-m);
+  animation:slideR .3s ease-out both;
+}
+.tg.hot  { background:rgba(255,0,60,.13); border:1px solid rgba(255,0,60,.35); color:var(--red); }
+.tg.warm { background:rgba(255,106,0,.1); border:1px solid rgba(255,106,0,.35); color:var(--orange); }
+.tg.cool { background:rgba(0,240,255,.07); border:1px solid rgba(0,240,255,.22); color:var(--cyan); }
+
+/* Suggestion list */
+.sug {
+  padding:.35rem .55rem; background:rgba(255,0,222,.04);
+  border-left:2px solid var(--magenta); border-radius:0 3px 3px 0;
+  font:.78rem var(--ff-m); color:var(--txt); margin-bottom:.3rem;
+  animation:slideR .3s ease-out both;
+}
+.sug .num { color:var(--magenta); margin-right:.4rem; }
+
+/* Recs */
+.rec {
+  display:flex; gap:.6rem; padding:.65rem; background:rgba(0,240,255,.025);
+  border-left:2px solid var(--cyan); border-radius:0 4px 4px 0;
+  font:.82rem/1.55 var(--ff-b); margin-bottom:.4rem;
+  animation:slideR .35s ease-out both;
+}
+
+/* Comparison table */
+.cmp-tbl { width:100%;border-collapse:collapse;font:.78rem var(--ff-m); }
+.cmp-tbl th {
+  padding:.5rem .7rem; text-align:left; font:400 .62rem var(--ff-m);
+  color:var(--magenta); text-transform:uppercase; letter-spacing:1px;
+  border-bottom:1px solid var(--border);
+}
+.cmp-tbl td { padding:.5rem .7rem; border-bottom:1px solid rgba(30,30,58,.4); }
+.cmp-tbl tr:hover td { background:rgba(0,240,255,.025); }
+.cmp-tbl .kw { color:var(--cyan); font-weight:700; }
+.minibar { display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-left:.4rem; }
+
+/* History */
+.hist {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:.4rem .65rem; border-radius:3px; cursor:pointer; transition:.2s; font-size:.78rem;
+}
+.hist:hover { background:rgba(0,240,255,.04); }
+.hist .kw { color:var(--cyan); font-family:var(--ff-m); }
+.hist .sc { font:700 .68rem var(--ff-d); }
+
+/* Loading */
+.ld-wrap { display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3.5rem 2rem;gap:1.2rem; }
+.spinner { width:44px;height:44px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .75s linear infinite;box-shadow:0 0 12px rgba(0,240,255,.2); }
+.ld-txt { font:.78rem var(--ff-m);color:var(--cyan);animation:pulse 1.4s infinite;letter-spacing:2px; }
+
+/* Welcome */
+.welcome { text-align:center;padding:4.5rem 2rem;animation:fadeUp .5s ease-out; }
+.welcome .big { font-size:3.5rem;margin-bottom:1.2rem;animation:flicker 5s linear infinite; }
+.welcome h2 { font:700 1.1rem var(--ff-d);color:var(--cyan);letter-spacing:3px;margin-bottom:.6rem;text-shadow:0 0 10px rgba(0,240,255,.3); }
+.welcome p { color:var(--txt2);font-size:.82rem;max-width:480px;margin:0 auto;line-height:1.7; }
+.welcome .sub { font:.68rem var(--ff-m);color:var(--magenta);margin-top:1.2rem;letter-spacing:1px; }
+
+/* Footer */
+footer {
+  padding:.8rem 2rem; border-top:1px solid var(--border); text-align:center;
+  font:.62rem var(--ff-m); color:var(--txt2); letter-spacing:1px;
+}
+
+.hidden { display:none!important; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="hdr-inner">
+      <div class="hdr-title"><h1>DL同人 ANALYZER</h1><span class="ver">v2.0</span></div>
+      <div class="hdr-status"><span class="dot"></span>SYSTEM ONLINE</div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+    <!-- Search -->
+    <section>
+      <div class="sec-label">// keyword input</div>
+      <form class="search-row" id="searchForm">
+        <div class="search-wrap">
+          <span class="ico">▶</span>
+          <input type="text" id="kwInput" placeholder="キーワードを入力... (ASMR, 催眠, NTR, RPG ...)" autocomplete="off">
+        </div>
+        <button type="submit" class="btn" id="analyzeBtn">ANALYZE</button>
+      </form>
+      <div class="qtags" id="quickTags"></div>
+    </section>
+
+    <!-- Tabs -->
+    <div class="tabs hidden" id="tabBar">
+      <button class="tab on" data-tab="analyze">ANALYZE</button>
+      <button class="tab" data-tab="compare" id="cmpTab">COMPARE (<span id="cmpCount">0</span>)</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="ld-wrap hidden" id="loader">
+      <div class="spinner"></div>
+      <div class="ld-txt">ANALYZING DEMAND DATA...</div>
+    </div>
+
+    <!-- Results (analyze) -->
+    <div class="grid hidden" id="resultsView"></div>
+
+    <!-- Compare -->
+    <div class="hidden" id="compareView"></div>
+
+    <!-- Welcome -->
+    <div class="welcome" id="welcomeView">
+      <div class="big">🔎</div>
+      <h2>DEMAND SCANNER READY</h2>
+      <p>同人作品のキーワード需要を分析します。<br>キーワードを入力するか、下のタグをクリックして開始してください。</p>
+      <div class="sub">// 需要スコア | 競争レベル | タグ分析 | 推奨事項</div>
+    </div>
+
+    <!-- History -->
+    <div class="panel hidden" id="historyPanel">
+      <div class="p-head">🕒 SCAN HISTORY</div>
+      <div class="p-body" id="historyList"></div>
+    </div>
+  </main>
+
+  <footer>DL同人 KEYWORD ANALYZER // CYBERPUNK EDITION // 2026</footer>
+</div>
+
+<script>
+// =========================================================================
+// DATA
+// =========================================================================
+const DB = {
+  "ASMR":{b:85,s:720,p:880,r:4.3,c:"high"},
+  "音声":{b:82,s:650,p:770,r:4.2,c:"high"},
+  "催眠":{b:78,s:580,p:990,r:4.1,c:"high"},
+  "NTR":{b:75,s:510,p:880,r:3.9,c:"high"},
+  "純愛":{b:72,s:480,p:770,r:4.4,c:"mid"},
+  "百合":{b:68,s:420,p:660,r:4.3,c:"mid"},
+  "異世界":{b:74,s:490,p:990,r:4.0,c:"high"},
+  "ファンタジー":{b:70,s:450,p:880,r:4.1,c:"mid"},
+  "触手":{b:65,s:380,p:770,r:3.8,c:"mid"},
+  "ロリ":{b:62,s:350,p:660,r:3.7,c:"mid"},
+  "熟女":{b:55,s:280,p:770,r:3.9,c:"low"},
+  "人妻":{b:64,s:400,p:880,r:4.0,c:"mid"},
+  "メイド":{b:58,s:310,p:770,r:4.1,c:"low"},
+  "女騎士":{b:60,s:340,p:880,r:4.0,c:"low"},
+  "エルフ":{b:57,s:300,p:770,r:4.2,c:"low"},
+  "魔法少女":{b:56,s:290,p:880,r:3.9,c:"low"},
+  "ツンデレ":{b:52,s:260,p:660,r:4.3,c:"low"},
+  "ヤンデレ":{b:54,s:270,p:770,r:4.0,c:"low"},
+  "BL":{b:70,s:440,p:770,r:4.2,c:"mid"},
+  "RPG":{b:76,s:520,p:1320,r:4.1,c:"high"},
+  "CG集":{b:60,s:350,p:550,r:3.8,c:"mid"},
+  "同人誌":{b:65,s:380,p:440,r:4.0,c:"high"},
+  "漫画":{b:63,s:360,p:550,r:4.0,c:"mid"},
+  "動画":{b:58,s:300,p:990,r:3.7,c:"low"},
+  "男の娘":{b:50,s:240,p:660,r:4.1,c:"low"},
+  "ふたなり":{b:48,s:220,p:770,r:3.8,c:"low"},
+  "獣耳":{b:55,s:280,p:660,r:4.2,c:"low"},
+  "ケモノ":{b:45,s:200,p:770,r:4.0,c:"niche"},
+  "ギャル":{b:58,s:310,p:660,r:4.1,c:"low"},
+  "幼馴染":{b:50,s:250,p:660,r:4.3,c:"low"},
+  "ボイスドラマ":{b:72,s:460,p:990,r:4.2,c:"mid"},
+  "アイドル":{b:55,s:280,p:770,r:4.0,c:"low"},
+  "学園":{b:62,s:370,p:770,r:4.1,c:"mid"},
+  "ホラー":{b:42,s:180,p:880,r:3.9,c:"niche"},
+  "バトル":{b:50,s:250,p:1100,r:3.8,c:"low"},
+  "シミュレーション":{b:68,s:420,p:1540,r:4.0,c:"mid"},
+  "ノベル":{b:55,s:280,p:1100,r:4.1,c:"low"},
+  "妹":{b:53,s:265,p:660,r:4.2,c:"low"},
+  "ナース":{b:46,s:210,p:660,r:3.9,c:"niche"},
+  "巨乳":{b:60,s:350,p:660,r:3.8,c:"mid"},
+  "モンスター娘":{b:52,s:260,p:880,r:4.1,c:"low"},
+  "ラブコメ":{b:66,s:410,p:770,r:4.3,c:"mid"},
+  "アクション":{b:54,s:270,p:1100,r:3.9,c:"low"},
+};
+
+const TAGS_REL = {
+  "ASMR":["音声","催眠","バイノーラル","耳かき","添い寝","囁き","癒し"],
+  "音声":["ASMR","ボイスドラマ","催眠","バイノーラル","囁き"],
+  "催眠":["ASMR","音声","洗脳","調教","支配","堕ち"],
+  "NTR":["寝取られ","人妻","浮気","堕ち","純愛","彼女"],
+  "純愛":["ラブコメ","甘々","いちゃいちゃ","初恋","幼馴染"],
+  "百合":["GL","女の子同士","純愛","学園","社会人"],
+  "異世界":["ファンタジー","転生","チート","冒険","RPG","ハーレム"],
+  "RPG":["ファンタジー","冒険","バトル","育成","ダンジョン"],
+  "BL":["男性同士","腐向け","イケメン","年下攻め"],
+  "触手":["モンスター","拘束","異種姦","ファンタジー"],
+  "CG集":["イラスト","差分","高解像度","フルカラー"],
+  "同人誌":["漫画","フルカラー","モノクロ","短編"],
+  "ボイスドラマ":["音声","ASMR","シチュエーション","ドラマCD"],
+};
+
+const SUGG_DB = {
+  "ASMR":["ASMR 耳かき","ASMR 添い寝","ASMR 催眠","ASMR 癒し","ASMR バイノーラル","ASMR 囁き","ASMR シチュボ","ASMR 甘やかし"],
+  "催眠":["催眠音声","催眠 調教","催眠 堕ち","催眠術","催眠 ASMR","催眠 洗脳","催眠 快楽"],
+  "NTR":["NTR 人妻","寝取られ","NTR 報告","NTR 堕ち","NTR 純愛","逆NTR","NTR 彼女"],
+  "異世界":["異世界転生","異世界 ハーレム","異世界 チート","異世界ファンタジー","異世界 冒険"],
+  "RPG":["RPG ファンタジー","RPG 探索","RPG 育成","RPG ダンジョン","RPG バトル"],
+  "百合":["百合 学園","百合 純愛","百合 社会人","百合 ファンタジー","百合 漫画","GL"],
+  "純愛":["純愛 ラブコメ","純愛 甘々","純愛 初恋","純愛 幼馴染","純愛 学園"],
+};
+
+const QUICK = ["ASMR","催眠","NTR","純愛","百合","異世界","RPG","BL","触手","CG集","ボイスドラマ","同人誌"];
+const COMP_LABEL = {high:"高 (人気市場)",mid:"中 (成長市場)",low:"低〜中 (チャンスあり)",niche:"低 (ニッチ市場)"};
+
+// =========================================================================
+// ENGINE
+// =========================================================================
+const jit = (v,r) => v + (Math.random()-.5)*2*r;
+const clamp = (v,lo,hi) => Math.min(hi,Math.max(lo,v));
+
+function analyze(keyword) {
+  const kw = keyword.trim();
+  const e = DB[kw];
+  const allKeys = Object.keys(DB);
+
+  let score,sales,price,rating,works,comp,tags,suggs;
+
+  if (e) {
+    score = clamp(Math.round(jit(e.b,5)),0,100);
+    sales = Math.max(0,Math.round(jit(e.s,e.s*.15)));
+    price = Math.max(100,Math.round(jit(e.p,e.p*.1)/10)*10);
+    rating = clamp(+jit(e.r,.2).toFixed(1),1,5);
+    works = Math.max(1,Math.round(jit(score*2.5,30)));
+    comp = COMP_LABEL[e.c]||"中";
+    tags = (TAGS_REL[kw]||[]).slice();
+    while(tags.length<9){ const p=allKeys[Math.random()*allKeys.length|0]; if(p!==kw&&!tags.includes(p)) tags.push(p); }
+    suggs = SUGG_DB[kw] || [`${kw} 人気`,`${kw} おすすめ`,`${kw} 新作`,`${kw} ランキング`,`${kw} 無料`];
+  } else {
+    const h=[...kw].reduce((a,c)=>a+c.charCodeAt(0),0);
+    score=clamp((h%60)+15+Math.round(jit(0,10)),5,100);
+    sales=Math.max(10,Math.round(score*jit(5.5,2)));
+    price=Math.max(100,Math.round(jit(770,300)/10)*10);
+    rating=clamp(+jit(3.8,.5).toFixed(1),2,5);
+    works=Math.max(1,Math.round(score*jit(2,1)));
+    comp=score>70?"高 (人気市場)":score>45?"中 (成長市場)":score>25?"低〜中":"低 (ニッチ市場)";
+    tags=[];
+    for(let i=0;i<9;i++){const p=allKeys[(h+i*7)%allKeys.length]; if(!tags.includes(p))tags.push(p);}
+    suggs=[`${kw} 人気`,`${kw} おすすめ`,`${kw} 新作`,`${kw} ランキング`,`${kw} 同人`];
+  }
+
+  const recs = [];
+  if(score>=70) recs.push({i:"🔥",t:"需要が高いキーワードです。品質で差別化を図り、上位作品との差を明確にしましょう。"});
+  else if(score>=40) recs.push({i:"💡",t:"中程度の需要があります。ニッチな切り口やユニークな要素で勝負できます。"});
+  else recs.push({i:"🔍",t:"需要は限定的です。複合キーワードで訴求範囲を広げることを検討してください。"});
+  if(sales>400) recs.push({i:"📈",t:`平均${sales}DLと市場が活発です。定期的な新作投入で認知度を高めましょう。`});
+  else recs.push({i:"📣",t:"販売数は控えめです。SNSやサンプルの充実でプロモーション強化を。"});
+  if(price>1000) recs.push({i:"💰",t:`平均価格¥${price.toLocaleString()}。ボリュームや付加価値のある作品が求められています。`});
+  else recs.push({i:"🎁",t:`平均価格¥${price.toLocaleString()}。手軽な価格帯でもチャンスがあります。`});
+  if(comp.startsWith("高")) recs.push({i:"⚠️",t:"競争が激しいため、独自性・クオリティ・タグ戦略が勝敗を分けます。"});
+  else recs.push({i:"✨",t:"競争が少ない市場です。先行者利益を狙える可能性があります。"});
+  if(tags.length) recs.push({i:"🏷️",t:`関連タグ「${tags.slice(0,4).join("・")}」との組み合わせが効果的です。`});
+
+  return {keyword:kw,demandScore:score,workCount:works,avgSales:sales,avgPrice:price,avgRating:rating,competition:comp,tags:tags.slice(0,10),suggestions:suggs,recs};
+}
+
+// =========================================================================
+// STATE & DOM
+// =========================================================================
+let currentResult = null;
+let history = [];
+let activeTab = 'analyze';
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const show = el => el.classList.remove('hidden');
+const hide = el => el.classList.add('hidden');
+
+function scoreColor(s){ return s>=65?'var(--green)':s>=35?'var(--yellow)':'var(--red)'; }
+function scoreCls(s){ return s>=65?'hi':s>=35?'md':'lo'; }
+function compColor(c){ return c.startsWith('高')?'var(--red)':c.startsWith('中')?'var(--yellow)':'var(--green)'; }
+
+// =========================================================================
+// RENDER
+// =========================================================================
+function renderResults(r) {
+  const v = $('#resultsView');
+  const sc = scoreCls(r.demandScore);
+  const scolor = scoreColor(r.demandScore);
+  const cc = compColor(r.competition);
+
+  v.innerHTML = `
+    <!-- Stats -->
+    <div class="panel">
+      <div class="p-head">📊 STATISTICS</div>
+      <div class="p-body">
+        <div class="stats">
+          <div class="st"><div class="st-v c">${r.workCount}</div><div class="st-l">WORKS</div></div>
+          <div class="st"><div class="st-v m">¥${r.avgPrice.toLocaleString()}</div><div class="st-l">AVG PRICE</div></div>
+          <div class="st"><div class="st-v g">${r.avgSales.toLocaleString()}</div><div class="st-l">AVG DOWNLOADS</div></div>
+          <div class="st"><div class="st-v y">★${r.avgRating}</div><div class="st-l">AVG RATING</div></div>
+        </div>
+        <div class="d-hdr">
+          <span class="d-lbl">DEMAND SCORE</span>
+          <span class="d-val" style="color:${scolor};text-shadow:0 0 15px ${scolor}">${r.demandScore}</span>
+        </div>
+        <div class="d-track"><div class="d-fill ${sc}" style="width:${r.demandScore}%"></div></div>
+      </div>
+    </div>
+
+    <!-- Competition -->
+    <div class="panel">
+      <div class="p-head">🎯 COMPETITION</div>
+      <div class="p-body">
+        <div style="text-align:center;padding:.8rem 0">
+          <div style="font:700 .88rem var(--ff-d);color:${cc};text-shadow:0 0 10px ${cc};letter-spacing:1px">${r.competition}</div>
+          <div style="font:.68rem var(--ff-m);color:var(--txt2);margin-top:.6rem;line-height:1.6">
+            KEYWORD: "${r.keyword}"<br>WORKS: ${r.workCount} | DL: ${r.avgSales.toLocaleString()}
+          </div>
+        </div>
+        <div class="tags" style="margin-top:.8rem">
+          ${r.tags.map((t,i)=>`<span class="tg ${i<2?'hot':i<5?'warm':'cool'}" style="animation-delay:${i*.05}s">${t}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggestions -->
+    <div class="panel">
+      <div class="p-head">🔍 SUGGESTIONS</div>
+      <div class="p-body">
+        ${r.suggestions.map((s,i)=>`<div class="sug" style="animation-delay:${i*.04}s"><span class="num">0${i+1}</span>${s}</div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Recs -->
+    <div class="panel full">
+      <div class="p-head">📝 RECOMMENDATIONS</div>
+      <div class="p-body">
+        ${r.recs.map((rc,i)=>`<div class="rec" style="animation-delay:${i*.08}s"><span style="font-size:1.05rem;flex-shrink:0">${rc.i}</span><span>${rc.t}</span></div>`).join('')}
+      </div>
+    </div>
+  `;
+  show(v);
+}
+
+function renderCompare() {
+  if(history.length < 2) return;
+  const cv = $('#compareView');
+  const sorted = [...history].sort((a,b)=>b.demandScore-a.demandScore);
+  const mx = Math.max(...sorted.map(r=>r.demandScore));
+
+  cv.innerHTML = `
+    <div class="panel full" style="animation:fadeUp .4s ease-out">
+      <div class="p-head">📊 KEYWORD COMPARISON</div>
+      <div class="p-body" style="overflow-x:auto">
+        <table class="cmp-tbl">
+          <thead><tr><th>KEYWORD</th><th>SCORE</th><th>WORKS</th><th>AVG DL</th><th>AVG PRICE</th><th>RATING</th><th>COMPETITION</th></tr></thead>
+          <tbody>
+            ${sorted.map(r=>{
+              const bc=scoreColor(r.demandScore);
+              return `<tr>
+                <td class="kw">${r.keyword}</td>
+                <td>${r.demandScore}<span class="minibar" style="width:${(r.demandScore/mx)*55}px;background:${bc};box-shadow:0 0 4px ${bc}"></span></td>
+                <td>${r.workCount}</td>
+                <td>${r.avgSales.toLocaleString()}</td>
+                <td>¥${r.avgPrice.toLocaleString()}</td>
+                <td>★${r.avgRating}</td>
+                <td>${r.competition}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderHistory() {
+  const hp = $('#historyPanel');
+  const hl = $('#historyList');
+  if(!history.length){ hide(hp); return; }
+  show(hp);
+  hl.innerHTML = history.map(h=>{
+    const c=scoreColor(h.demandScore);
+    return `<div class="hist" data-kw="${h.keyword}"><span class="kw">${h.keyword}</span><span class="sc" style="color:${c}">${h.demandScore}/100</span></div>`;
+  }).join('');
+  hl.querySelectorAll('.hist').forEach(el=>{
+    el.addEventListener('click',()=>runAnalysis(el.dataset.kw));
+  });
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  $$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===tab));
+  if(tab==='analyze'){
+    if(currentResult){ show($('#resultsView')); renderResults(currentResult); }
+    hide($('#compareView'));
+  } else {
+    hide($('#resultsView'));
+    renderCompare();
+    show($('#compareView'));
+  }
+}
+
+// =========================================================================
+// RUN
+// =========================================================================
+function runAnalysis(kw) {
+  const keyword = kw || $('#kwInput').value.trim();
+  if(!keyword) return;
+  $('#kwInput').value = keyword;
+
+  // Show loading
+  hide($('#welcomeView'));
+  hide($('#resultsView'));
+  hide($('#compareView'));
+  show($('#loader'));
+  const btn = $('#analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'SCANNING...';
+  btn.classList.add('spin-border');
+
+  const delay = 600 + Math.random()*1000;
+  setTimeout(()=>{
+    const res = analyze(keyword);
+    currentResult = res;
+
+    // Update history
+    history = [res, ...history.filter(h=>h.keyword!==res.keyword)].slice(0,20);
+
+    // Hide loading
+    hide($('#loader'));
+    btn.disabled = false;
+    btn.textContent = 'ANALYZE';
+    btn.classList.remove('spin-border');
+
+    // Show tabs
+    show($('#tabBar'));
+    $('#cmpCount').textContent = history.length;
+    if(history.length<2) $('#cmpTab').disabled = true;
+    else $('#cmpTab').disabled = false;
+
+    // Render
+    activeTab = 'analyze';
+    switchTab('analyze');
+    renderHistory();
+  }, delay);
+}
+
+// =========================================================================
+// INIT
+// =========================================================================
+(function init() {
+  // Quick tags
+  const qt = $('#quickTags');
+  QUICK.forEach(tag=>{
+    const b = document.createElement('button');
+    b.className='qtag'; b.textContent=tag;
+    b.addEventListener('click',()=>runAnalysis(tag));
+    qt.appendChild(b);
+  });
+
+  // Form
+  $('#searchForm').addEventListener('submit',e=>{ e.preventDefault(); runAnalysis(); });
+
+  // Tabs
+  $$('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{ if(!t.disabled) switchTab(t.dataset.tab); });
+  });
+
+  // Focus
+  $('#kwInput').focus();
+})();
+</script>
+</body>
+</html>
